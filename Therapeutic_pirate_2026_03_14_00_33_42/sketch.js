@@ -39,13 +39,12 @@ function draw() {
 function updateStateMachine() {
   stateTimer++;
   if (stateTimer > sceneDuration) {
-    state = (state + 1) % 6; 
+    state = (state + 1) % 5; 
     stateTimer = 0;
   }
 }
 
 function handleBackground(s) {
-  
   if (s === 2) background(15, 20, 40, 40); 
   else if (s === 3) background(40, 15, 15, 40); 
   else if (s === 4) background(255, 30); 
@@ -76,25 +75,23 @@ class Particle {
   }
 
   applyBehaviors(s) {
-    if (s === 0) { // Entropy
+    if (s === 0) { 
       let drift = p5.Vector.random2D().mult(0.5);
       this.applyForce(drift);
     } 
-    else if (s === 1) { // Induction (Mouse)
+    else if (s === 1) { 
       let target = createVector(mouseX, mouseY);
       this.applyForce(this.seek(target).mult(1.2));
     }
-    else if (s === 2) { // Alignment (Flow)
+    else if (s === 2) { 
       let flow = createVector(cos(this.pos.y * 0.01), sin(this.pos.x * 0.01));
       this.applyForce(flow.mult(1.5));
     }
-    else if (s === 4) { // High Tension (Center)
+    else if (s === 4) { 
       let center = createVector(width/2, height/2);
       this.applyForce(this.seek(center).mult(2.5));
     }
-    else if (s === 5) { // Residual (Friction)
-      this.vel.mult(0.92);
-    }
+    
   }
 
   seek(target) {
@@ -104,3 +101,80 @@ class Particle {
     steer.limit(this.maxForce);
     return steer;
   }
+
+  interact(other) {
+    let d = dist(this.pos.x, this.pos.y, other.pos.x, other.pos.y);
+    if (d < 100 && d > 0) {
+      let force = p5.Vector.sub(this.pos, other.pos);
+      force.normalize();
+      
+      if (this.charge === other.charge) {
+        force.mult(1.2 / (d * 0.1)); 
+      } else {
+        force.mult(-1.8 / (d * 0.1)); 
+      }
+      this.applyForce(force);
+    }
+  }
+
+  applyForce(f) {
+    this.acc.add(f);
+  }
+
+  update() {
+    this.vel.add(this.acc);
+    this.vel.limit(this.maxSpeed);
+    this.pos.add(this.vel);
+    this.acc.mult(0);
+    this.edges();
+    
+    this.history.push(this.pos.copy());
+    if (this.history.length > 12) this.history.shift();
+  }
+
+  display(s) {
+    let col = this.charge > 0 ? color(0, 150, 255) : color(255, 50, 100);
+    if (s === 4) col = color(0, 50); 
+    
+    push();
+    translate(this.pos.x, this.pos.y);
+    rotate(this.vel.heading());
+    
+    noFill();
+    stroke(col);
+    strokeWeight(1);
+    beginShape();
+    for (let i = 0; i < this.history.length; i++) {
+      let offset = p5.Vector.sub(this.history[i], this.pos);
+      vertex(offset.x, offset.y); 
+    }
+    endShape();
+
+    fill(col);
+    noStroke();
+    rect(-this.size, -1, this.size * 2, 2);
+    pop();
+  }
+
+  edges() {
+    if (this.pos.x > width) this.pos.x = 0;
+    if (this.pos.x < 0) this.pos.x = width;
+    if (this.pos.y > height) this.pos.y = 0;
+    if (this.pos.y < 0) this.pos.y = height;
+  }
+}
+
+function mousePressed() {
+  for (let p of particles) {
+    if (dist(mouseX, mouseY, p.pos.x, p.pos.y) < 250) {
+      p.charge *= -1;
+    }
+  }
+}
+
+function displaySceneLabel() {
+  let barWidth = map(stateTimer, 0, sceneDuration, 0, width);
+  noStroke();
+  fill(255, 80);
+  rect(0, height - 4, barWidth, 4);
+}
